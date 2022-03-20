@@ -45,9 +45,19 @@ export default function App() {
     const canvasRef = useRef();
     const canvasContext = useRef();
 
+    /**
+     * Redraws the triangle and accompanying labels.
+     * @param {Number} sideA The length of side A.
+     * @param {Number} sideB The length of side B.
+     * @param {Number} sideC The length of side C.
+     * @param {Number} angleARadians The angle measurement between sides B and C in radians.
+     * @param {Number} angleBRadians The angle measurement between sides C and A in radians.
+     * @param {Number} angleCRadians The angle measurement between sides B and A in radians.
+     */
     const updateCanvas = useCallback((sideA, sideB, sideC, angleARadians, angleBRadians, angleCRadians) => {
         clearCanvas();
 
+        // Find the largest side and make that the bottom. 
         let bottomSide, rightSide, leftSide, rightAngle, topAngle, leftAngle;
         if (sideA >= sideB && sideA >= sideC) {
             bottomSide = sideA;
@@ -72,39 +82,38 @@ export default function App() {
             leftAngle = angleARadians;
         }
 
+        // Normalize the right and bottom side measurements to fit the canvas.
+        // We don't need to normalize the left side - we will extrapolate that from the 
+        // inscribed right triangle needed to calculate anchor points.
         const sizeMultipler = CANVAS_TRIANGLE_MAX_WIDTH / bottomSide;
-
         const normalizedRightSide = rightSide * sizeMultipler;
         const normalizedBottomSide = bottomSide * sizeMultipler;
 
-        // Start at bottom left.
+        // Start at bottom left with the padding. 
         let x = CANVAS_TRIANGLE_PADDING, y = CANVAS_WIDTH - CANVAS_TRIANGLE_PADDING;
+        canvasContext.current.moveTo(x, y);
         const leftAnchor = [x, y];
 
-        // Side C across the bottom.
-        canvasContext.current.moveTo(x, y);
+        // Draw the bottom side.
         x += normalizedBottomSide;
-        const rightAnchor = [x, y];
-        
         canvasContext.current.lineTo(x, y);
+        const rightAnchor = [x, y];
 
-        // Side A up and to the left.
+        // Calculate the height and width of both inscribed right triangles.
         const inscribedRightTriangleHeight = normalizedRightSide * Math.sin(rightAngle);
         const inscribedRightTriangleSide1 = normalizedRightSide * Math.cos(rightAngle);
         const inscribedRightTriangleSide2 = normalizedBottomSide - inscribedRightTriangleSide1;
 
+        // Draw the right side.
         x -= inscribedRightTriangleSide1;
         y -= inscribedRightTriangleHeight;
+        canvasContext.current.lineTo(x, y);
         const topAnchor = [x, y];
 
-        canvasContext.current.lineTo(x, y);
-
-        // Side B down and to the left.
+        // Draw the left side. We are essentially just returning to the left anchor point.
         x -= inscribedRightTriangleSide2;
         y += inscribedRightTriangleHeight;
-
         canvasContext.current.lineTo(x, y);
-
         canvasContext.current.stroke();
 
         // Write side labels.
@@ -120,11 +129,18 @@ export default function App() {
         canvasContext.current.fillText(Math.round(180 / Math.PI * rightAngle * DEGREES_PRECISION_MULTIPLIER) / DEGREES_PRECISION_MULTIPLIER, ...rightAnchor);
         // Then top.
         canvasContext.current.fillText(Math.round(180 / Math.PI * topAngle * DEGREES_PRECISION_MULTIPLIER) / DEGREES_PRECISION_MULTIPLIER, ...topAnchor);
-        // Then left.
+        // Then left. This one is also shifted left by how long it is so that there is no overlap.
         const leftAngleDegrees = Math.round(180 / Math.PI * leftAngle * DEGREES_PRECISION_MULTIPLIER) / DEGREES_PRECISION_MULTIPLIER;
         canvasContext.current.fillText(leftAngleDegrees, leftAnchor[0] - canvasContext.current.measureText(leftAngleDegrees).width, leftAnchor[1]);
     }, []);
 
+    /**
+     * This is triggered when the any of the sides are changed by the user.
+     * It will first check each field for input errors.
+     * If all three fields are valid, it will check if the user specified
+     * a valid triangle. If the triangle is valid, it determines the class of the triangle,
+     * and then calls a function to draw the triangle and accompanying labels.
+     */
     useEffect(() => {
         let newTriangleIdentification = "";
 
@@ -146,6 +162,9 @@ export default function App() {
 
         // If this variable is empty, then the three fields are valid. Proceed with logic.
         if (newTriangleIdentification === "") {
+            // First, cast the input values to numbers, sort the resulting numbers from smallest to largest,
+            // and see if the first two add up to <= the third. If they do, the triangle is invalid.
+            // If not, we have a valid triangle. 
             const numericSides = [sides.sideA, sides.sideB, sides.sideC].map(side => Number(side));
             const sortedNumericSides = [...numericSides].sort((a, b) => a - b);
             if (sortedNumericSides[0] + sortedNumericSides[1] <= sortedNumericSides[2]) {
@@ -157,9 +176,12 @@ export default function App() {
 
                 const [sideA, sideB, sideC] = numericSides;
 
+                // Use the law of cosines to calculate each angle in the triangle.
                 const angleARadians = Math.acos((Math.pow(sideB, 2) + Math.pow(sideC, 2) - Math.pow(sideA, 2)) / (2 * sideB * sideC));
                 const angleBRadians = Math.acos((Math.pow(sideC, 2) + Math.pow(sideA, 2) - Math.pow(sideB, 2)) / (2 * sideC * sideA));
                 const angleCRadians = Math.acos((Math.pow(sideA, 2) + Math.pow(sideB, 2) - Math.pow(sideC, 2)) / (2 * sideA * sideB));
+
+                // Begin classification.
 
                 // First side case, equilateral triangle. All sides are equal.
                 if (sideA === sideB && sideB === sideC) {
@@ -203,6 +225,11 @@ export default function App() {
         setTriangleIdentification(newTriangleIdentification);
     }, [sides, updateCanvas]);
 
+    /**
+     * Triggered when the ref attached to the canvas changes. Should only be invoked twice.
+     * First for the initialization of the canvasRef variable, second for the first render of the component.
+     * This first render is when we have access to the ref of the canvas.
+     */
     useEffect(() => {
         if (canvasRef.current) {
             canvasContext.current = canvasRef.current.getContext("2d");
@@ -211,6 +238,9 @@ export default function App() {
         }
     }, [canvasRef]);
 
+    /**
+     * Clears the canvas.
+     */
     function clearCanvas() {
         if (canvasContext.current) {
             canvasContext.current.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -218,6 +248,11 @@ export default function App() {
         }
     }
 
+    /**
+     * Invoked when the user changes a value in any of the inputs.
+     * Updates the React state with the new value.
+     * @param {any} event The native event.
+     */
     function handleSideChange(event) {
         setSides({
             ...sides,
@@ -225,6 +260,12 @@ export default function App() {
         });
     }
 
+    /**
+     * Invoked when the user blurs an input.
+     * Updates the React state with which field was blurred.
+     * Used to avoid showing errors before the user has done anything on inputs.
+     * @param {any} event 
+     */
     function handleFieldBlur(event) {
         setTouched({
             ...touched,
