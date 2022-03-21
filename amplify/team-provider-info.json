@@ -10,6 +10,14 @@
       "StackName": "amplify-triangles-dev-82028",
       "StackId": "arn:aws:cloudformation:us-east-1:960281566480:stack/amplify-triangles-dev-82028/10c87e80-a922-11ec-9f88-0ab20a92ae11",
       "AmplifyAppId": "d76haz2wb9d8e"
+    },
+    "categories": {
+      "function": {
+        "trianglefunction": {
+          "deploymentBucketName": "amplify-triangles-dev-82028-deployment",
+          "s3Key": "amplify-builds/trianglefunction-5630645631476f534f6a-build.zip"
+        }
+      }
     }
   }
 }

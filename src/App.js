@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Grid, TextField, Typography } from "@mui/material"
+import { API } from "aws-amplify";
 
 const inputs = [
     {
@@ -141,7 +142,7 @@ export default function App() {
      * a valid triangle. If the triangle is valid, it determines the class of the triangle,
      * and then calls a function to draw the triangle and accompanying labels.
      */
-    useEffect(() => {
+    const fetchDataAndUpdate = useCallback(async () => {
         let newTriangleIdentification = "";
 
         // First, check the inputs for errors.
@@ -162,60 +163,20 @@ export default function App() {
 
         // If this variable is empty, then the three fields are valid. Proceed with logic.
         if (newTriangleIdentification === "") {
-            // First, cast the input values to numbers, sort the resulting numbers from smallest to largest,
-            // and see if the first two add up to <= the third. If they do, the triangle is invalid.
-            // If not, we have a valid triangle. 
-            const numericSides = [sides.sideA, sides.sideB, sides.sideC].map(side => Number(side));
-            const sortedNumericSides = [...numericSides].sort((a, b) => a - b);
-            if (sortedNumericSides[0] + sortedNumericSides[1] <= sortedNumericSides[2]) {
-                newTriangleIdentification = `The triangle is invalid: ${sortedNumericSides[0]} + ${sortedNumericSides[1]} ≤ ${sortedNumericSides[2]}`;
+            const triangleResult = await API.post("triangleapi", "/calculate", {
+                body: {
+                    SideA: Number(sides.sideA),
+                    SideB: Number(sides.sideB),
+                    SideC: Number(sides.sideC),
+                    CanvasTriangleMaxWidth: CANVAS_TRIANGLE_MAX_WIDTH,
+                    CanvasWidth: CANVAS_WIDTH
+                }
+            });
+
+            if (!triangleResult.Valid) {
                 clearCanvas();
             } else {
-                // If we got here, the triangle is valid. Proceed to identify.
-                let angleIdentification, sideLengthIdentification;
-
-                const [sideA, sideB, sideC] = numericSides;
-
-                // Use the law of cosines to calculate each angle in the triangle.
-                const angleARadians = Math.acos((Math.pow(sideB, 2) + Math.pow(sideC, 2) - Math.pow(sideA, 2)) / (2 * sideB * sideC));
-                const angleBRadians = Math.acos((Math.pow(sideC, 2) + Math.pow(sideA, 2) - Math.pow(sideB, 2)) / (2 * sideC * sideA));
-                const angleCRadians = Math.acos((Math.pow(sideA, 2) + Math.pow(sideB, 2) - Math.pow(sideC, 2)) / (2 * sideA * sideB));
-
-                // Begin classification.
-
-                // First side case, equilateral triangle. All sides are equal.
-                if (sideA === sideB && sideB === sideC) {
-                    sideLengthIdentification = "equilateral";
-                }
-
-                // Second side case, an isosceles triangle. Two sides are equal.
-                else if (sideA === sideB || sideA === sideC || sideB === sideC) {
-                    sideLengthIdentification = "isosceles";
-                }
-
-                // Third side case, a scalene triangle. No sides are equal. 
-                else {
-                    sideLengthIdentification = "scalene";
-                }
-
-                // First angle case, an acute triangle. All three angles must be less than 90 degrees.
-                if (angleARadians < Math.PIOver2 && angleBRadians < Math.PIOver2 && angleCRadians < Math.PIOver2) {
-                    angleIdentification = "acute";
-                }
-
-                // Second angle case, an obtuse triangle. One angle must be greater than 90 degrees.
-                else if (angleARadians > Math.PIOver2 || angleBRadians > Math.PIOver2 || angleCRadians > Math.PIOver2) {
-                    angleIdentification = "obtuse";
-                }
-
-                // Third angle case, a right angle. One angle must measure exactly 90 degrees.
-                else if (angleARadians === Math.PIOver2 || angleBRadians === Math.PIOver2 || angleCRadians === Math.PIOver2) {
-                    angleIdentification = "right";
-                }
-
-                newTriangleIdentification = `These sides produce a valid ${angleIdentification}, ${sideLengthIdentification} triangle.`;
-
-                updateCanvas(sideA, sideB, sideC, angleARadians, angleBRadians, angleCRadians);
+                //updateCanvas(sideA, sideB, sideC, angleARadians, angleBRadians, angleCRadians);
             }
         } else {
             clearCanvas();
@@ -223,7 +184,12 @@ export default function App() {
 
         setError({ ...newErrors });
         setTriangleIdentification(newTriangleIdentification);
-    }, [sides, updateCanvas]);
+    }, [sides]);
+    
+    useEffect(() => {
+        fetchDataAndUpdate();
+    }, [sides, fetchDataAndUpdate]);
+
 
     /**
      * Triggered when the ref attached to the canvas changes. Should only be invoked twice.
