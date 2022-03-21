@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "paths": {
+    "/calculate": {
+      "name": "/calculate",
+      "lambdaFunction": "trianglefunction",
+      "permissions": {
+        "setting": "open"
+      }
+    }
+  }
+}
