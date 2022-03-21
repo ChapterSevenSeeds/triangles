@@ -53,7 +53,7 @@ namespace trianglefunction
         public double AngleBDegrees { get; set; }
         public double AngleCDegrees { get; set; }
     }
-    public class Anchors
+    public class DisplayData
     {
         // Signifies how many times you need to circularly rotate the input (so that the largest side is on the bottom).
         public int InputSideRotation { get; set; }
@@ -63,11 +63,20 @@ namespace trianglefunction
         public double[] LeftRightAnchorMidpoint { get; set; }
         public double[] RightTopAnchorMidpoint { get; set; }
         public double[] TopLeftAnchorMidpoint { get; set; }
+        public double BottomSide { get; set; }
+        public double RightSide { get; set; }
+        public double LeftSide { get; set; }
+        public double LeftAngleDegrees { get; set; }
+        public double RightAngleDegrees { get; set; }
+        public double TopAngleDegrees { get; set; }
+        public double LeftAngleRadians { get; set; }
+        public double RightAngleRadians { get; set; }
+        public double TopAngleRadians { get; set; }
     }
     public class TriangleFunctionResponse
     {
         public TriangleData Data { get; set; }
-        public Anchors Anchors { get; set; }
+        public DisplayData DisplayData { get; set; }
     }
     public class trianglefunction
     {
@@ -101,11 +110,11 @@ namespace trianglefunction
                 case "POST":
                     TriangleFunctionInput input = JsonSerializer.Deserialize<TriangleFunctionInput>(request.Body);
                     TriangleData data = ClassifyTriangle(input);
-                    Anchors anchors = CalculateCanvasAnchorPoints(data, input);
+                    DisplayData displayData = CalculateCanvasAnchorPoints(data, input);
 
                     TriangleFunctionResponse responseBody = new TriangleFunctionResponse();
                     responseBody.Data = data;
-                    responseBody.Anchors = anchors;
+                    responseBody.DisplayData = displayData;
 
                     response.StatusCode = (int)HttpStatusCode.OK;
                     response.Body = JsonSerializer.Serialize(responseBody, typeof(TriangleFunctionResponse));
@@ -136,9 +145,9 @@ namespace trianglefunction
                 data.AngleARadians = Math.Acos((Math.Pow(input.SideB, 2) + Math.Pow(input.SideC, 2) - Math.Pow(input.SideA, 2)) / (2 * input.SideB * input.SideC));
                 data.AngleBRadians = Math.Acos((Math.Pow(input.SideC, 2) + Math.Pow(input.SideA, 2) - Math.Pow(input.SideB, 2)) / (2 * input.SideC * input.SideA));
                 data.AngleCRadians = Math.Acos((Math.Pow(input.SideA, 2) + Math.Pow(input.SideB, 2) - Math.Pow(input.SideC, 2)) / (2 * input.SideA * input.SideB));
-                data.AngleADegrees = 180 / Math.PI * data.AngleARadians;
-                data.AngleBDegrees = 180 / Math.PI * data.AngleBRadians;
-                data.AngleCDegrees = 180 / Math.PI * data.AngleCRadians;
+                data.AngleADegrees = ConvertRadiansToDegrees(data.AngleARadians);
+                data.AngleBDegrees = ConvertRadiansToDegrees(data.AngleBRadians);
+                data.AngleCDegrees = ConvertRadiansToDegrees(data.AngleCRadians);
 
                 // Begin classification.
 
@@ -170,73 +179,82 @@ namespace trianglefunction
             return data;
         }
 
-        public Anchors CalculateCanvasAnchorPoints(TriangleData data, TriangleFunctionInput input)
+        public DisplayData CalculateCanvasAnchorPoints(TriangleData data, TriangleFunctionInput input)
         {
-            Anchors anchors = new Anchors();
+            DisplayData displayData = new DisplayData();
             // Find the largest side and make that the bottom. 
-            double bottomSide, rightSide, leftSide, rightAngle, topAngle, leftAngle;
             if (input.SideA >= input.SideB && input.SideA >= input.SideC)
             {
-                anchors.InputSideRotation = 0;
-                bottomSide = input.SideA;
-                rightSide = input.SideB;
-                leftSide = input.SideC;
-                rightAngle = data.AngleCRadians;
-                topAngle = data.AngleARadians;
-                leftAngle = data.AngleBRadians;
+                displayData.BottomSide = input.SideA;
+                displayData.RightSide = input.SideB;
+                displayData.LeftSide = input.SideC;
+                displayData.RightAngleRadians = data.AngleCRadians;
+                displayData.RightAngleDegrees = ConvertRadiansToDegrees(data.AngleCRadians);
+                displayData.TopAngleRadians = data.AngleARadians;
+                displayData.TopAngleDegrees = ConvertRadiansToDegrees(data.AngleARadians);
+                displayData.LeftAngleRadians = data.AngleBRadians;
+                displayData.LeftAngleDegrees = ConvertRadiansToDegrees(data.AngleBRadians);
             }
             else if (input.SideB >= input.SideA && input.SideB >= input.SideC)
             {
-                anchors.InputSideRotation = 1;
-                bottomSide = input.SideB;
-                rightSide = input.SideC;
-                leftSide = input.SideA;
-                rightAngle = data.AngleARadians;
-                topAngle = data.AngleBRadians;
-                leftAngle = data.AngleCRadians;
+                displayData.BottomSide = input.SideB;
+                displayData.RightSide = input.SideC;
+                displayData.LeftSide = input.SideA;
+                displayData.RightAngleRadians = data.AngleARadians;
+                displayData.RightAngleDegrees = ConvertRadiansToDegrees(data.AngleARadians);
+                displayData.TopAngleRadians = data.AngleBRadians;
+                displayData.TopAngleDegrees = ConvertRadiansToDegrees(data.AngleBRadians);
+                displayData.LeftAngleRadians = data.AngleCRadians;
+                displayData.LeftAngleDegrees = ConvertRadiansToDegrees(data.AngleCRadians);
             }
             else
             {
-                anchors.InputSideRotation = 2;
-                bottomSide = input.SideC;
-                rightSide = input.SideA;
-                leftSide = input.SideB;
-                rightAngle = data.AngleBRadians;
-                topAngle = data.AngleCRadians;
-                leftAngle = data.AngleARadians;
+                displayData.BottomSide = input.SideC;
+                displayData.RightSide = input.SideA;
+                displayData.LeftSide = input.SideB;
+                displayData.RightAngleRadians = data.AngleBRadians;
+                displayData.RightAngleDegrees = ConvertRadiansToDegrees(data.AngleBRadians);
+                displayData.TopAngleRadians = data.AngleCRadians;
+                displayData.TopAngleDegrees = ConvertRadiansToDegrees(data.AngleCRadians);
+                displayData.LeftAngleRadians = data.AngleARadians;
+                displayData.LeftAngleDegrees = ConvertRadiansToDegrees(data.AngleARadians);
             }
 
             // Normalize the right and bottom side measurements to fit the canvas.
             // We don't need to normalize the left side - we will extrapolate that from the 
             // inscribed right triangle needed to calculate anchor points.
-            double sizeMultipler = input.CanvasTriangleMaxWidth / bottomSide;
-            double normalizedRightSide = rightSide * sizeMultipler;
-            double normalizedBottomSide = bottomSide * sizeMultipler;
+            double sizeMultipler = input.CanvasTriangleMaxWidth / displayData.BottomSide;
+            double normalizedRightSide = displayData.RightSide * sizeMultipler;
+            double normalizedBottomSide = displayData.BottomSide * sizeMultipler;
 
             // Start at bottom left with the padding. 
             double x = input.CanvasTrianglePadding, y = input.CanvasWidth - input.CanvasTrianglePadding;
-            anchors.LeftAnchorPoint = new double[] { x, y };
+            displayData.LeftAnchorPoint = new double[] { x, y };
 
             // Draw the bottom side.
             x += normalizedBottomSide;
-            anchors.RightAnchorPoint = new double[] { x, y };
+            displayData.RightAnchorPoint = new double[] { x, y };
 
             // Calculate the height and width of both inscribed right triangles.
-            double inscribedRightTriangleHeight = normalizedRightSide * Math.Sin(rightAngle);
-            double inscribedRightTriangleSide1 = normalizedRightSide * Math.Cos(rightAngle);
+            double inscribedRightTriangleHeight = normalizedRightSide * Math.Sin(displayData.RightAngleRadians);
+            double inscribedRightTriangleSide1 = normalizedRightSide * Math.Cos(displayData.RightAngleRadians);
             double inscribedRightTriangleSide2 = normalizedBottomSide - inscribedRightTriangleSide1;
 
             // Draw the right side.
             x -= inscribedRightTriangleSide1;
             y -= inscribedRightTriangleHeight;
-            anchors.TopAnchorPoint = new double[] { x, y };
+            displayData.TopAnchorPoint = new double[] { x, y };
 
             // Calculate the midpoints of the anchor points.
-            anchors.LeftRightAnchorMidpoint = new double[] { anchors.RightAnchorPoint[0] - (anchors.RightAnchorPoint[0] - anchors.LeftAnchorPoint[0]) / 2, anchors.RightAnchorPoint[1] - (anchors.RightAnchorPoint[1] - anchors.LeftAnchorPoint[1]) / 2 };
-            anchors.RightTopAnchorMidpoint = new double[] { anchors.TopAnchorPoint[0] + (anchors.RightAnchorPoint[0] - anchors.TopAnchorPoint[0]) / 2, anchors.TopAnchorPoint[1] + (anchors.RightAnchorPoint[1] - anchors.TopAnchorPoint[1]) / 2 };
-            anchors.TopLeftAnchorMidpoint = new double[] { anchors.TopAnchorPoint[0] - (anchors.TopAnchorPoint[0] - anchors.LeftAnchorPoint[0]) / 2, anchors.TopAnchorPoint[1] - (anchors.TopAnchorPoint[1] - anchors.LeftAnchorPoint[1]) / 2 };
+            displayData.LeftRightAnchorMidpoint = new double[] { displayData.RightAnchorPoint[0] - (displayData.RightAnchorPoint[0] - displayData.LeftAnchorPoint[0]) / 2, displayData.RightAnchorPoint[1] - (displayData.RightAnchorPoint[1] - displayData.LeftAnchorPoint[1]) / 2 };
+            displayData.RightTopAnchorMidpoint = new double[] { displayData.TopAnchorPoint[0] + (displayData.RightAnchorPoint[0] - displayData.TopAnchorPoint[0]) / 2, displayData.TopAnchorPoint[1] + (displayData.RightAnchorPoint[1] - displayData.TopAnchorPoint[1]) / 2 };
+            displayData.TopLeftAnchorMidpoint = new double[] { displayData.TopAnchorPoint[0] - (displayData.TopAnchorPoint[0] - displayData.LeftAnchorPoint[0]) / 2, displayData.TopAnchorPoint[1] - (displayData.TopAnchorPoint[1] - displayData.LeftAnchorPoint[1]) / 2 };
 
-            return anchors;
+            return displayData;
+        }
+
+        public double ConvertRadiansToDegrees(double radians) {
+            return 180 / Math.PI * radians;
         }
     }
 }

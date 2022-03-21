@@ -15,7 +15,7 @@
       "function": {
         "trianglefunction": {
           "deploymentBucketName": "amplify-triangles-dev-82028-deployment",
-          "s3Key": "amplify-builds/trianglefunction-5630645631476f534f6a-build.zip"
+          "s3Key": "amplify-builds/trianglefunction-3465797a364e67736e47-build.zip"
         }
       }
     }

@@ -20,7 +20,6 @@ const inputs = [
 Math.PIOver2 = Math.PI / 2;
 
 const DEGREES_PRECISION = 2;
-const DEGREES_PRECISION_MULTIPLIER = Math.pow(10, DEGREES_PRECISION);
 const CANVAS_TRIANGLE_PADDING = 50; // Allows room for the labels.
 const CANVAS_WIDTH = 350;
 const CANVAS_HEIGHT = 350;
@@ -46,6 +45,11 @@ export default function App() {
     const canvasRef = useRef();
     const canvasContext = useRef();
 
+    function roundToPrecision(input, precision) {
+        const precisionPowerOf10 = Math.pow(10, precision);
+        return Math.trunc(input * precisionPowerOf10) / precisionPowerOf10;
+    }
+
     /**
      * Redraws the triangle and accompanying labels.
      * @param {Number} sideA The length of side A.
@@ -55,84 +59,31 @@ export default function App() {
      * @param {Number} angleBRadians The angle measurement between sides C and A in radians.
      * @param {Number} angleCRadians The angle measurement between sides B and A in radians.
      */
-    const updateCanvas = useCallback((sideA, sideB, sideC, angleARadians, angleBRadians, angleCRadians) => {
+    const updateCanvas = useCallback((displayData) => {
         clearCanvas();
-
-        // Find the largest side and make that the bottom. 
-        let bottomSide, rightSide, leftSide, rightAngle, topAngle, leftAngle;
-        if (sideA >= sideB && sideA >= sideC) {
-            bottomSide = sideA;
-            rightSide = sideB;
-            leftSide = sideC;
-            rightAngle = angleCRadians;
-            topAngle = angleARadians;
-            leftAngle = angleBRadians;
-        } else if (sideB >= sideA && sideB >= sideC) {
-            bottomSide = sideB;
-            rightSide = sideC;
-            leftSide = sideA;
-            rightAngle = angleARadians;
-            topAngle = angleBRadians;
-            leftAngle = angleCRadians;
-        } else {
-            bottomSide = sideC;
-            rightSide = sideA;
-            leftSide = sideB;
-            rightAngle = angleBRadians;
-            topAngle = angleCRadians;
-            leftAngle = angleARadians;
-        }
-
-        // Normalize the right and bottom side measurements to fit the canvas.
-        // We don't need to normalize the left side - we will extrapolate that from the 
-        // inscribed right triangle needed to calculate anchor points.
-        const sizeMultipler = CANVAS_TRIANGLE_MAX_WIDTH / bottomSide;
-        const normalizedRightSide = rightSide * sizeMultipler;
-        const normalizedBottomSide = bottomSide * sizeMultipler;
-
-        // Start at bottom left with the padding. 
-        let x = CANVAS_TRIANGLE_PADDING, y = CANVAS_WIDTH - CANVAS_TRIANGLE_PADDING;
-        canvasContext.current.moveTo(x, y);
-        const leftAnchor = [x, y];
-
-        // Draw the bottom side.
-        x += normalizedBottomSide;
-        canvasContext.current.lineTo(x, y);
-        const rightAnchor = [x, y];
-
-        // Calculate the height and width of both inscribed right triangles.
-        const inscribedRightTriangleHeight = normalizedRightSide * Math.sin(rightAngle);
-        const inscribedRightTriangleSide1 = normalizedRightSide * Math.cos(rightAngle);
-        const inscribedRightTriangleSide2 = normalizedBottomSide - inscribedRightTriangleSide1;
-
-        // Draw the right side.
-        x -= inscribedRightTriangleSide1;
-        y -= inscribedRightTriangleHeight;
-        canvasContext.current.lineTo(x, y);
-        const topAnchor = [x, y];
-
-        // Draw the left side. We are essentially just returning to the left anchor point.
-        x -= inscribedRightTriangleSide2;
-        y += inscribedRightTriangleHeight;
-        canvasContext.current.lineTo(x, y);
+        
+        canvasContext.current.moveTo(...displayData.LeftAnchorPoint);
+        canvasContext.current.lineTo(...displayData.RightAnchorPoint);
+        canvasContext.current.lineTo(...displayData.TopAnchorPoint);
+        canvasContext.current.lineTo(...displayData.LeftAnchorPoint);
         canvasContext.current.stroke();
 
         // Write side labels.
         // Bottom first. This one is shifted up just a tad to avoid overlap with the bottom line.
-        canvasContext.current.fillText(bottomSide, rightAnchor[0] - (rightAnchor[0] - leftAnchor[0]) / 2, rightAnchor[1] - (rightAnchor[1] - leftAnchor[1]) / 2 - 2);
+        canvasContext.current.fillText(displayData.BottomSide, displayData.LeftRightAnchorMidpoint[0], displayData.LeftRightAnchorMidpoint[1] - 2);
         // Right side.
-        canvasContext.current.fillText(rightSide, topAnchor[0] + (rightAnchor[0] - topAnchor[0]) / 2, topAnchor[1] + (rightAnchor[1] - topAnchor[1]) / 2);
+        canvasContext.current.fillText(displayData.RightSide, ...displayData.RightTopAnchorMidpoint);
         // Left side. We want to offset the X location of this label by how long it is so that it doesn't overlap with the line.
-        canvasContext.current.fillText(leftSide, topAnchor[0] - (topAnchor[0] - leftAnchor[0]) / 2 - canvasContext.current.measureText(leftSide).width, topAnchor[1] - (topAnchor[1] - leftAnchor[1]) / 2);
+        canvasContext.current.fillText(displayData.LeftSide, displayData.TopLeftAnchorMidpoint[0] - canvasContext.current.measureText(displayData.LeftSide).width, displayData.TopLeftAnchorMidpoint[1]);
 
         // Write angle lables.
         // Right first.
-        canvasContext.current.fillText(Math.round(180 / Math.PI * rightAngle * DEGREES_PRECISION_MULTIPLIER) / DEGREES_PRECISION_MULTIPLIER, ...rightAnchor);
+        canvasContext.current.fillText(roundToPrecision(displayData.RightAngleDegrees, DEGREES_PRECISION), ...displayData.RightAnchorPoint);
         // Then top.
-        canvasContext.current.fillText(Math.round(180 / Math.PI * topAngle * DEGREES_PRECISION_MULTIPLIER) / DEGREES_PRECISION_MULTIPLIER, ...topAnchor);
+        canvasContext.current.fillText(roundToPrecision(displayData.TopAngleDegrees, DEGREES_PRECISION), ...displayData.TopAnchorPoint);
         // Then left. This one is also shifted left by how long it is so that there is no overlap.
-        const leftAngleDegrees = Math.round(180 / Math.PI * leftAngle * DEGREES_PRECISION_MULTIPLIER) / DEGREES_PRECISION_MULTIPLIER;
-        canvasContext.current.fillText(leftAngleDegrees, leftAnchor[0] - canvasContext.current.measureText(leftAngleDegrees).width, leftAnchor[1]);
+        const leftAngleDegreesString = roundToPrecision(displayData.RightAngleDegrees, DEGREES_PRECISION).toString();
+        canvasContext.current.fillText(leftAngleDegreesString, displayData.LeftAnchorPoint[0] - canvasContext.current.measureText(leftAngleDegreesString).width, displayData.LeftAnchorPoint[1]);
     }, []);
 
     /**
@@ -173,10 +124,10 @@ export default function App() {
                 }
             });
 
-            if (!triangleResult.Valid) {
+            if (!triangleResult.Data.Valid) {
                 clearCanvas();
             } else {
-                //updateCanvas(sideA, sideB, sideC, angleARadians, angleBRadians, angleCRadians);
+                updateCanvas(triangleResult.DisplayData);
             }
         } else {
             clearCanvas();
@@ -184,7 +135,7 @@ export default function App() {
 
         setError({ ...newErrors });
         setTriangleIdentification(newTriangleIdentification);
-    }, [sides]);
+    }, [sides, updateCanvas]);
     
     useEffect(() => {
         fetchDataAndUpdate();
