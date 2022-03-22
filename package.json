@@ -6,6 +6,7 @@
     "@emotion/react": "^11.8.2",
     "@emotion/styled": "^11.8.1",
     "@mui/material": "^5.5.1",
+    "async-mutex": "^0.3.2",
     "aws-amplify": "^4.3.16",
     "lodash": "^4.17.21",
     "react": "^17.0.2",
