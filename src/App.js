@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Grid, TextField, Typography } from "@mui/material"
+import { useEffect, useRef, useState } from "react";
+import { Grid, LinearProgress, TextField, Typography } from "@mui/material"
 import { API } from "aws-amplify";
+import { debounce } from "lodash";
 
 const inputs = [
     {
@@ -25,6 +26,18 @@ const CANVAS_WIDTH = 350;
 const CANVAS_HEIGHT = 350;
 const CANVAS_TRIANGLE_MAX_WIDTH = CANVAS_WIDTH - CANVAS_TRIANGLE_PADDING * 2;
 
+const sideClassification = {
+    "0": "equilateral",
+    "1": "isosceles",
+    "2": "scalene"
+};
+
+const angleClassification = {
+    "0": "acute",
+    "1": "obtuse",
+    "2": "right"
+};
+
 export default function App() {
     const [sides, setSides] = useState({
         sideA: '',
@@ -41,27 +54,29 @@ export default function App() {
         sideB: '',
         sideC: ''
     });
+    const [loading, setLoading] = useState(false);
     const [triangleIdentification, setTriangleIdentification] = useState("");
     const canvasRef = useRef();
     const canvasContext = useRef();
 
+    /**
+     * Rounds the input to a precision.
+     * @param {Number} input The input value.
+     * @param {Number} precision The amount of decimal places to show in the result.
+     * @returns {Number} The result.
+     */
     function roundToPrecision(input, precision) {
         const precisionPowerOf10 = Math.pow(10, precision);
-        return Math.trunc(input * precisionPowerOf10) / precisionPowerOf10;
+        return Math.round(input * precisionPowerOf10) / precisionPowerOf10;
     }
 
     /**
      * Redraws the triangle and accompanying labels.
-     * @param {Number} sideA The length of side A.
-     * @param {Number} sideB The length of side B.
-     * @param {Number} sideC The length of side C.
-     * @param {Number} angleARadians The angle measurement between sides B and C in radians.
-     * @param {Number} angleBRadians The angle measurement between sides C and A in radians.
-     * @param {Number} angleCRadians The angle measurement between sides B and A in radians.
+     * @param {any} displayData The display data returned from the triangle API. 
      */
-    const updateCanvas = useCallback((displayData) => {
+    function updateCanvas(displayData) {
         clearCanvas();
-        
+
         canvasContext.current.moveTo(...displayData.LeftAnchorPoint);
         canvasContext.current.lineTo(...displayData.RightAnchorPoint);
         canvasContext.current.lineTo(...displayData.TopAnchorPoint);
@@ -84,16 +99,41 @@ export default function App() {
         // Then left. This one is also shifted left by how long it is so that there is no overlap.
         const leftAngleDegreesString = roundToPrecision(displayData.RightAngleDegrees, DEGREES_PRECISION).toString();
         canvasContext.current.fillText(leftAngleDegreesString, displayData.LeftAnchorPoint[0] - canvasContext.current.measureText(leftAngleDegreesString).width, displayData.LeftAnchorPoint[1]);
-    }, []);
+    }
+
+    /**
+     * A debounced function ref that calls the triangle API,
+     * displays the triangle classification, and draws the triangle.
+     */
+    const fetchDataAndUpdate = useRef(debounce(async (sideA, sideB, sideC) => {
+        setLoading(true);
+            const triangleResult = await API.post("triangleapi", "/calculate", {
+                body: {
+                    SideA: Number(sideA),
+                    SideB: Number(sideB),
+                    SideC: Number(sideC),
+                    CanvasTriangleMaxWidth: CANVAS_TRIANGLE_MAX_WIDTH,
+                    CanvasWidth: CANVAS_WIDTH
+                }
+            });
+            setLoading(false);
+
+            if (!triangleResult.Data.Valid) {
+                setTriangleIdentification("Triangle is invalid.");
+                clearCanvas();
+            } else {
+                setTriangleIdentification(`The given sides produce a valid ${angleClassification[triangleResult.Data.AngleClassification]}, ${sideClassification[triangleResult.Data.SideClassification]} triangle.`);
+                updateCanvas(triangleResult.DisplayData);
+            }
+    }, 50));
 
     /**
      * This is triggered when the any of the sides are changed by the user.
      * It will first check each field for input errors.
-     * If all three fields are valid, it will check if the user specified
-     * a valid triangle. If the triangle is valid, it determines the class of the triangle,
-     * and then calls a function to draw the triangle and accompanying labels.
+     * If all three fields are valid, it will call the triangle API to evaluate the triangle.
+     * If any of the fields are invalid, it will immediately show the errors.
      */
-    const fetchDataAndUpdate = useCallback(async () => {
+    function checkForErrors() {
         let newTriangleIdentification = "";
 
         // First, check the inputs for errors.
@@ -112,34 +152,25 @@ export default function App() {
             }
         }
 
+        setError({ ...newErrors });
+
         // If this variable is empty, then the three fields are valid. Proceed with logic.
         if (newTriangleIdentification === "") {
-            const triangleResult = await API.post("triangleapi", "/calculate", {
-                body: {
-                    SideA: Number(sides.sideA),
-                    SideB: Number(sides.sideB),
-                    SideC: Number(sides.sideC),
-                    CanvasTriangleMaxWidth: CANVAS_TRIANGLE_MAX_WIDTH,
-                    CanvasWidth: CANVAS_WIDTH
-                }
-            });
-
-            if (!triangleResult.Data.Valid) {
-                clearCanvas();
-            } else {
-                updateCanvas(triangleResult.DisplayData);
-            }
+            fetchDataAndUpdate.current.cancel();
+            fetchDataAndUpdate.current(sides.sideA, sides.sideB, sides.sideC);
         } else {
             clearCanvas();
+            setTriangleIdentification(newTriangleIdentification);
         }
+    }
 
-        setError({ ...newErrors });
-        setTriangleIdentification(newTriangleIdentification);
-    }, [sides, updateCanvas]);
-    
+    /**
+     * This is triggered if any of the 3 sides are changed. 
+     */
     useEffect(() => {
-        fetchDataAndUpdate();
-    }, [sides, fetchDataAndUpdate]);
+        checkForErrors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sides]);
 
 
     /**
@@ -213,7 +244,8 @@ export default function App() {
                 <Typography variant='h6'>{triangleIdentification}</Typography>
             </Grid>
             <Grid item>
-                <canvas ref={canvasRef} id="triangle-viewer" width="350" height="350" />
+                {loading && <LinearProgress variant='indeterminate' />}
+                <canvas style={{ visibility: loading ? 'hidden' : 'visible' }} ref={canvasRef} id="triangle-viewer" width={CANVAS_HEIGHT} height={CANVAS_WIDTH} />
             </Grid>
         </Grid>
     );

@@ -25,6 +25,7 @@ namespace trianglefunction
         Obtuse,
         Right
     }
+
     public class TriangleFunctionInput
     {
         public double SideA { get; set; }
@@ -53,10 +54,9 @@ namespace trianglefunction
         public double AngleBDegrees { get; set; }
         public double AngleCDegrees { get; set; }
     }
+
     public class DisplayData
     {
-        // Signifies how many times you need to circularly rotate the input (so that the largest side is on the bottom).
-        public int InputSideRotation { get; set; }
         public double[] LeftAnchorPoint { get; set; }
         public double[] RightAnchorPoint { get; set; }
         public double[] TopAnchorPoint { get; set; }
@@ -73,24 +73,21 @@ namespace trianglefunction
         public double RightAngleRadians { get; set; }
         public double TopAngleRadians { get; set; }
     }
+
     public class TriangleFunctionResponse
     {
         public TriangleData Data { get; set; }
         public DisplayData DisplayData { get; set; }
     }
+
     public class trianglefunction
     {
-        const double piOver2 = Math.PI / 2;
+        const double PI_OVER_2 = Math.PI / 2;
 
         /// <summary>
-        /// A Lambda function to respond to HTTP Get methods from API Gateway
+        /// Handles the incoming request from the API gateway.
         /// </summary>
-        /// <param name="request"></param>
-        /// <returns>The list of blogs</returns>
-        /// <remarks>
-        /// If you rename this function, you will need to update the invocation shim
-        /// to match if you intend to test the function with 'amplify mock function'
-        /// </remarks>
+        /// <returns>The response object wrapped in an asynchronous Task.</returns>
 #pragma warning disable CS1998
         public async Task<APIGatewayProxyResponse> LambdaHandler(APIGatewayProxyRequest request, ILambdaContext context)
         {
@@ -129,10 +126,16 @@ namespace trianglefunction
             return response;
         }
 
+
+        /// <summary>
+        /// Determines if the triangle is valid. If it is valid, it identifies
+        /// the triangle side and angle classifications. It also calculates each angle.
+        /// </summary>
+        /// <returns>The calculated triangle data.</returns>
         public TriangleData ClassifyTriangle(TriangleFunctionInput input)
         {
             TriangleData data = new TriangleData();
-            double[] sortedNumericSides = new double[] { input.SideA, input.SideA, input.SideC };
+            double[] sortedNumericSides = new double[] { input.SideA, input.SideB, input.SideC };
             Array.Sort(sortedNumericSides);
             if (sortedNumericSides[0] + sortedNumericSides[1] <= sortedNumericSides[2])
                 data.Valid = false;
@@ -164,21 +167,25 @@ namespace trianglefunction
                     data.SideClassification = SideClassification.Scalene;
 
                 // First angle case, an acute triangle. All three angles must be less than 90 degrees.
-                if (data.AngleARadians < piOver2 && data.AngleBRadians < piOver2 && data.AngleCRadians < piOver2)
+                if (data.AngleARadians < PI_OVER_2 && data.AngleBRadians < PI_OVER_2 && data.AngleCRadians < PI_OVER_2)
                     data.AngleClassification = AngleClassification.Acute;
 
                 // Second angle case, an obtuse triangle. One angle must be greater than 90 degrees.
-                else if (data.AngleARadians > piOver2 || data.AngleBRadians > piOver2 || data.AngleCRadians > piOver2)
+                else if (data.AngleARadians > PI_OVER_2 || data.AngleBRadians > PI_OVER_2 || data.AngleCRadians > PI_OVER_2)
                     data.AngleClassification = AngleClassification.Obtuse;
 
                 // Third angle case, a right angle. One angle must measure exactly 90 degrees.
-                else if (data.AngleARadians == piOver2 || data.AngleBRadians == piOver2 || data.AngleCRadians == piOver2)
+                else if (data.AngleARadians == PI_OVER_2 || data.AngleBRadians == PI_OVER_2 || data.AngleCRadians == PI_OVER_2)
                     data.AngleClassification = AngleClassification.Right;
             }
 
             return data;
         }
 
+        /// <summary>
+        /// Calculates the display data for the triangle.
+        /// </summary>
+        /// <returns>The calculated display data.</returns>
         public DisplayData CalculateCanvasAnchorPoints(TriangleData data, TriangleFunctionInput input)
         {
             DisplayData displayData = new DisplayData();
@@ -189,11 +196,11 @@ namespace trianglefunction
                 displayData.RightSide = input.SideB;
                 displayData.LeftSide = input.SideC;
                 displayData.RightAngleRadians = data.AngleCRadians;
-                displayData.RightAngleDegrees = ConvertRadiansToDegrees(data.AngleCRadians);
+                displayData.RightAngleDegrees = data.AngleCDegrees;
                 displayData.TopAngleRadians = data.AngleARadians;
-                displayData.TopAngleDegrees = ConvertRadiansToDegrees(data.AngleARadians);
+                displayData.TopAngleDegrees = data.AngleADegrees;
                 displayData.LeftAngleRadians = data.AngleBRadians;
-                displayData.LeftAngleDegrees = ConvertRadiansToDegrees(data.AngleBRadians);
+                displayData.LeftAngleDegrees = data.AngleBDegrees;
             }
             else if (input.SideB >= input.SideA && input.SideB >= input.SideC)
             {
@@ -201,11 +208,11 @@ namespace trianglefunction
                 displayData.RightSide = input.SideC;
                 displayData.LeftSide = input.SideA;
                 displayData.RightAngleRadians = data.AngleARadians;
-                displayData.RightAngleDegrees = ConvertRadiansToDegrees(data.AngleARadians);
+                displayData.RightAngleDegrees = data.AngleADegrees;
                 displayData.TopAngleRadians = data.AngleBRadians;
-                displayData.TopAngleDegrees = ConvertRadiansToDegrees(data.AngleBRadians);
+                displayData.TopAngleDegrees = data.AngleBDegrees;
                 displayData.LeftAngleRadians = data.AngleCRadians;
-                displayData.LeftAngleDegrees = ConvertRadiansToDegrees(data.AngleCRadians);
+                displayData.LeftAngleDegrees = data.AngleCDegrees;
             }
             else
             {
@@ -213,11 +220,11 @@ namespace trianglefunction
                 displayData.RightSide = input.SideA;
                 displayData.LeftSide = input.SideB;
                 displayData.RightAngleRadians = data.AngleBRadians;
-                displayData.RightAngleDegrees = ConvertRadiansToDegrees(data.AngleBRadians);
+                displayData.RightAngleDegrees = data.AngleBDegrees;
                 displayData.TopAngleRadians = data.AngleCRadians;
-                displayData.TopAngleDegrees = ConvertRadiansToDegrees(data.AngleCRadians);
+                displayData.TopAngleDegrees = data.AngleCDegrees;
                 displayData.LeftAngleRadians = data.AngleARadians;
-                displayData.LeftAngleDegrees = ConvertRadiansToDegrees(data.AngleARadians);
+                displayData.LeftAngleDegrees = data.AngleADegrees;
             }
 
             // Normalize the right and bottom side measurements to fit the canvas.
@@ -253,7 +260,12 @@ namespace trianglefunction
             return displayData;
         }
 
-        public double ConvertRadiansToDegrees(double radians) {
+        /// <summary>
+        /// Converts radians to degrees.
+        /// </summary>
+        /// <returns>The resulting degrees.</returns>
+        public double ConvertRadiansToDegrees(double radians)
+        {
             return 180 / Math.PI * radians;
         }
     }
